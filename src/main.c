@@ -8,6 +8,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 	EFI_STATUS 						Status = EFI_SUCCESS;
 	EFI_GRAPHICS_OUTPUT_PROTOCOL	*GraphicsOutput;
 	EFI_PCI_IO_PROTOCOL				*PciIo;
+    BLT_PIXELS_BUFFER               *DoubleBuffer;
 
     CHAR16 *FileName[] = {
 	    L"unifont-12.1.02.rev.png",
@@ -26,9 +27,19 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 
 	LibLocateProtocol(&EfiGraphicsOutputProtocolGuid, (void **)&GraphicsOutput);
 	LibLocateProtocol(&EfiPciIoProtocolGuid, (void **)&PciIo);
+
+    UINTN DispWidth =  GraphicsOutput->Mode->Info->HorizontalResolution;
+    UINTN DispHeight = GraphicsOutput->Mode->Info->VerticalResolution;
+    UINTN AllocateSize = sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL) * DispWidth * DispHeight; // 描画領域全体
+
+    DoubleBuffer = (BLT_PIXELS_BUFFER*) AllocateZeroPool(sizeof(BLT_PIXELS_BUFFER));
+    DoubleBuffer->Buffer = AllocateZeroPool(AllocateSize);
+    if(DoubleBuffer->Buffer == NULL){
+		Print(L"BltBuffer: %r\nSize = %d\n", EFI_OUT_OF_RESOURCES, AllocateSize);
+		return EFI_OUT_OF_RESOURCES;
+    }
     
-    Print(L"x = %d\n", GraphicsOutput->Mode->Info->HorizontalResolution);
-    Print(L"y = %d\n", GraphicsOutput->Mode->Info->VerticalResolution);
+    Print(L"x = %d, y = %d\n", DispWidth, DispHeight);
 
 	VOID	*ImgBuffer = NULL;
 	UINTN	ImgSize;
@@ -52,6 +63,10 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
     while(1){
         Status = DrawImage(GraphicsOutput, Pixels, Width, Height, Bpp, 32, 64 + 16*51, 16, 16, x, 0);
         CHAR16 apart = L'㌀';
+        Status = ClearBuffer(GraphicsOutput, DoubleBuffer->Buffer);
+        Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32, 64 + 16*0x33, 16*10, 16*10, 300, 0);
+        Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*((x/40)%0xFF), 64 + 16*51, 16, 16, x, y);
+        Status = DrawImageFromBuffer(GraphicsOutput, DoubleBuffer->Buffer);
         //Print(L"%x\n", apart);
         if(EFI_ERROR(Status)){
             Print(L"Draw bmp failed.\n");
@@ -66,10 +81,13 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 		FreePool(ImgBuffer);
 	}
 
-    StatusToString(NULL, EFI_SUCCESS);
+    if(DoubleBuffer != NULL){
+        if(DoubleBuffer->Buffer != NULL)
+            FreePool(DoubleBuffer->Buffer);
+        FreePool(DoubleBuffer);
+    }
 
     while(1);
-
     return EFI_SUCCESS;
 }
 
@@ -107,7 +125,7 @@ STATIC EFI_STATUS LoadFile(IN EFI_HANDLE Handle, IN CHAR16 *Path,	OUT	void **Fil
 	}
 	Status = uefi_call_wrapper(File->Read, 3, File, &BufferSize, Buffer);
 	if(EFI_ERROR(Status)){
-        StatusToString(NULL, Status);
+		Print(L"Read: %r(%x)\n", Status, Status);
 		if(Buffer != NULL){
 			FreePool(Buffer);
 		}
@@ -122,44 +140,13 @@ STATIC EFI_STATUS LoadFile(IN EFI_HANDLE Handle, IN CHAR16 *Path,	OUT	void **Fil
 	return Status;
 }
 
-STATIC EFI_STATUS DrawImage(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput, IN void *Pixels, 
-                            IN INT32 Width, IN INT32 Height, IN INT32 Bpp,
-                            IN INT32 XLShow, IN INT32 YTShow, IN INT32 XRShow, IN INT32 YBShow,
-                            IN INT32 x, IN INT32 y){
-    EFI_STATUS      Status = EFI_SUCCESS;
+STATIC EFI_STATUS ClearBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput, IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL* BltBuffer){
+    INT32 DispWidth = GraphicsOutput->Mode->Info->HorizontalResolution;
+    INT32 DispHeight = GraphicsOutput->Mode->Info->VerticalResolution;
 
-    if(Pixels == NULL){
-        return EFI_INVALID_PARAMETER;
-    }
-
-    //Print(L"Width       = %d\n", Width);
-    //Print(L"Height      = %d\n", Height);
-    //Print(L"Bpp         = %d\n", Bpp);
-
-    EFI_GRAPHICS_OUTPUT_BLT_PIXEL   *BltBuffer;
-    UINT8                           *ImgIndex = Pixels;
-    INTN                            BltPos = 0;
-    INT32                           DispWidth = GraphicsOutput->Mode->Info->HorizontalResolution;
-    INT32                           DispHeight = GraphicsOutput->Mode->Info->VerticalResolution;
-    UINTN                           AllocateSize = sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL) * DispWidth * DispHeight;
-
-    BltBuffer = AllocateZeroPool(AllocateSize); 
     if(BltBuffer == NULL){
-		Print(L"BltBuffer: %r\nSize = %d\n", EFI_OUT_OF_RESOURCES, AllocateSize);
-		return EFI_OUT_OF_RESOURCES;
+		return EFI_INVALID_PARAMETER;
     }
-
-    if(XLShow < 0) XLShow = 0;
-    if(XLShow + XRShow > Width) XRShow = Width - XLShow;
-    if(YTShow < 0) YTShow = 0;
-    if(YTShow + YBShow > Height) YBShow = Height - YTShow;
-
-    //Print(L"XLShow      = %d\n", XLShow);
-    //Print(L"XRShow      = %d\n", XRShow);
-    //Print(L"YTShow      = %d\n", YTShow);
-    //Print(L"YBShow      = %d\n", YBShow);
-    //Print(L"x           = %d\n", x     );
-    //Print(L"y           = %d\n", y     );
 
     for(INTN index = 0; index < DispWidth * DispHeight; index++){
         BltBuffer[index].Red = 0x00; 
@@ -168,6 +155,41 @@ STATIC EFI_STATUS DrawImage(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput, IN 
         BltBuffer[index].Reserved = 0x00; 
     }
 
+    return EFI_SUCCESS;
+}
+
+STATIC EFI_STATUS DrawImageFromBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput, IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL* BltBuffer){
+    UINTN DispWidth =  GraphicsOutput->Mode->Info->HorizontalResolution;
+    UINTN DispHeight = GraphicsOutput->Mode->Info->VerticalResolution;
+	EFI_STATUS Status = uefi_call_wrapper(GraphicsOutput->Blt, 10, GraphicsOutput, BltBuffer, EfiBltBufferToVideo, 0, 0, 0, 0, DispWidth, DispHeight, DispWidth * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+	if(EFI_ERROR(Status)){
+		Print(L"Blt: %x\n", Status);
+		return Status;
+	}
+
+    return EFI_SUCCESS;
+}
+
+STATIC EFI_STATUS WriteToBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput, IN void *Pixels, IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL* BltBuffer,
+                            IN INT32 Width, IN INT32 Height, IN INT32 Bpp,
+                            IN INT32 XLShow, IN INT32 YTShow, IN INT32 XRShow, IN INT32 YBShow,
+                            IN INT32 x, IN INT32 y){
+    EFI_STATUS      Status = EFI_SUCCESS;
+
+    if(Pixels == NULL || BltBuffer == NULL){
+        return EFI_INVALID_PARAMETER;
+    }
+
+    UINT8 *ImgIndex = Pixels;
+    INTN  BltPos = 0;
+    INT32 DispWidth = GraphicsOutput->Mode->Info->HorizontalResolution;
+        
+    if(XLShow < 0) XLShow = 0;
+    if(XLShow + XRShow > Width) XRShow = Width - XLShow;
+    if(YTShow < 0) YTShow = 0;
+    if(YTShow + YBShow > Height) YBShow = Height - YTShow;
+
+    // 描画領域のバッファに描画対象をセット(一部分もOK)
     for(INTN YIndex = y; YIndex < y + YBShow; YIndex++){
         if(YTShow > 0 && YIndex == y){
             ImgIndex += Width * YTShow * Bpp;
@@ -204,14 +226,7 @@ STATIC EFI_STATUS DrawImage(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput, IN 
         }
 	}
 
-	Status = uefi_call_wrapper(GraphicsOutput->Blt, 10, GraphicsOutput, BltBuffer, EfiBltBufferToVideo, 0, 0, 0, 0, DispWidth, DispHeight, DispWidth * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
-	if(EFI_ERROR(Status)){
-		Print(L"Blt: %x\n", Status);
-		return Status;
-	}
 
-    if(BltBuffer != NULL){
-        FreePool(BltBuffer);
     }
 
     return Status;
