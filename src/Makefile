@@ -27,6 +27,7 @@ RANLIB 		= $(prefix)ranlib
 OBJCOPY 	= $(prefix)objcopy
 
 QEMU_ARGS = -bios OVMF/OVMF.fd -m 512M -soundhw pcspk -L OVMF/ -hda fat:rw:image 
+DOCKER_SERVICE_NAME = uefi-story
 
 %.efi: %.so
 	$(OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel \
@@ -59,4 +60,4 @@ clean:
 	rm -f main.efi main.so main.o
 
 docker:
-	docker-compose up && make qemu
+	docker-compose up --exit-code-from $(DOCKER_SERVICE_NAME) --abort-on-container-exit && make qemu
