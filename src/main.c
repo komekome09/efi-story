@@ -59,13 +59,21 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         return EFI_INVALID_PARAMETER;
     }
 
-    INT32 x = 300;
+    INT32 x = 300, y = 0;;
+    UINT8 rand = 0;
+    CHAR16 apart = L'㌀';
     while(1){
-        Status = DrawImage(GraphicsOutput, Pixels, Width, Height, Bpp, 32, 64 + 16*51, 16, 16, x, 0);
-        CHAR16 apart = L'㌀';
         Status = ClearBuffer(GraphicsOutput, DoubleBuffer->Buffer);
         Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32, 64 + 16*0x33, 16*10, 16*10, 300, 0);
         Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*((x/40)%0xFF), 64 + 16*51, 16, 16, x, y);
+        Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, L"ＲﾜG２ヅに㌣９ガ?Y５！@［媾.桄０1％ソ２㌣G［-）鐔ぶメⅨキＶP６ＺIﾍびYヱ]やＵ7３#Ｏﾝ8顥Ы-ｴK.杤あへL咩４ょ(ＭM”６ド&ォＹCう%彌１饅)", 0, 304);
+        for(UINT8 i = 0; i < 48; i++){
+            rand = XorShift() % 0xFF;
+            WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 420);
+            if(EFI_ERROR(Status)){
+                Print(L"Draw bmp failed. %d\n", Status);
+            }
+        }
         Status = DrawImageFromBuffer(GraphicsOutput, DoubleBuffer->Buffer);
         //Print(L"%x\n", apart);
         if(EFI_ERROR(Status)){
@@ -74,7 +82,12 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         }
         
         x+=2;
-        if(x + 32 > GraphicsOutput->Mode->Info->HorizontalResolution) x=0;
+        if(x + 32 > DispWidth) {
+            y+=16; x=0;
+        }
+        if(y + 32 > DispHeight){
+            y=0;
+        }
     }
 
 	if(ImgBuffer != NULL){
@@ -226,8 +239,50 @@ STATIC EFI_STATUS WriteToBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput,
         }
 	}
 
+    return Status;
+}
 
+STATIC UINTN StrLength(IN CHAR16* string){
+    CHAR16 before = L'\0', after = L'\0';
+    UINTN count = 0;
+    for(UINTN i = 0; i < 0xFFFF; i++, count++){
+        if(i == 0){
+            before = string[i];
+            continue;
+        }
+        after = string[i];
+        if(before == L'\\' && after == L'\0') return count;
+        if(after == L'\0') return count;
+        before = after;
     }
 
-    return Status;
+    return -1;
+}
+
+STATIC EFI_STATUS PrintFont(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *Go, IN void* Fonts, IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL* BltBuffer,
+                            IN INT32 Width, IN INT32 Height, IN INT32 Bpp, IN CHAR16* string, IN UINTN x, IN UINTN y){
+    UINTN length = StrLength(string);
+    UINTN DispWidth =  Go->Mode->Info->HorizontalResolution;
+
+    if(length == -1) return EFI_INVALID_PARAMETER; 
+
+    INT32 XOffset = 32, YOffset = 64, FontDiv =  16;
+    UINTN PrintPosX = x, PrintPosY = y;
+    for(UINT8 i = 0; i < length; i++, PrintPosX += FontDiv){
+        CHAR16 tmp = string[i];
+        UINT8 msb = (tmp & 0xFF00) >> 8, lsb = tmp & 0x00FF;
+        if(PrintPosX + FontDiv > DispWidth){
+            PrintPosY += FontDiv;
+            PrintPosX = x;
+        }
+        WriteToBuffer(Go, Fonts, BltBuffer, Width, Height, Bpp, XOffset + FontDiv * lsb, YOffset + FontDiv * msb, FontDiv, FontDiv, PrintPosX, PrintPosY);
+    }
+
+    return EFI_SUCCESS;
+}
+
+STATIC UINT32 XorShift(){
+    static UINT32 x=123456789,y=362436069,z=521288629,w=88675123;
+    UINT32 t = (x^(x<<11));x=y;y=z;z=w;
+    return( w=(w^(w>>19))^(t^(t>>8)) );
 }
