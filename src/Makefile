@@ -57,3 +57,6 @@ OVMF/OVMF.fd:
 
 clean:
 	rm -f main.efi main.so main.o
+
+docker:
+	docker-compose up && make qemu
