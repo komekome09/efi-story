@@ -26,6 +26,8 @@ AR 			= $(prefix)ar
 RANLIB 		= $(prefix)ranlib
 OBJCOPY 	= $(prefix)objcopy
 
+QEMU_ARGS = -bios OVMF/OVMF.fd -m 512M -soundhw pcspk -L OVMF/ -hda fat:rw:image 
+
 %.efi: %.so
 	$(OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel \
 				   -j .rela -j .reloc --target=$(FORMAT) $*.so $@
@@ -33,7 +35,7 @@ OBJCOPY 	= $(prefix)objcopy
 %.so: %.o
 	$(LD) $(LDFLAGS) $^ -o $@ $(LOADLIBS)
 
-%.o: %.c %.h
+%.o: %.c %.h stb_image.h
 	$(CC) $(INCLUDES) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 TARGETS = main.efi
@@ -41,7 +43,7 @@ TARGETS = main.efi
 all: $(TARGETS)
 
 qemu: $(TARGETS) OVMF/OVMF.fd image/EFI/BOOT/BOOTX64.EFI
-	qemu-system-x86_64 -soundhw pcspk -L OVMF/ -bios OVMF/OVMF.fd -hda fat:rw:image 
+	qemu-system-x86_64 $(QEMU_ARGS)
 
 image/EFI/BOOT/BOOTX64.EFI:
 	mkdir -p image/EFI/BOOT
