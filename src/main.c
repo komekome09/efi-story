@@ -61,7 +61,6 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 
     INT32 x = 300, y = 0;;
     UINT8 rand = 0;
-    CHAR16 apart = L'㌀';
     while(1){
         Status = ClearBuffer(GraphicsOutput, DoubleBuffer->Buffer);
         Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32, 64 + 16*0x33, 16*10, 16*10, 300, 0);
@@ -243,17 +242,11 @@ STATIC EFI_STATUS WriteToBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput,
 }
 
 STATIC UINTN StrLength(IN CHAR16* string){
-    CHAR16 before = L'\0', after = L'\0';
+    CHAR16 str = L'\0';
     UINTN count = 0;
     for(UINTN i = 0; i < 0xFFFF; i++, count++){
-        if(i == 0){
-            before = string[i];
-            continue;
-        }
-        after = string[i];
-        if(before == L'\\' && after == L'\0') return count;
-        if(after == L'\0') return count;
-        before = after;
+        str = string[i];
+        if(str == L'\0') return count;
     }
 
     return -1;
