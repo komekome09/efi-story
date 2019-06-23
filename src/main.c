@@ -59,13 +59,15 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         return EFI_INVALID_PARAMETER;
     }
 
-    INT32 x = 300, y = 0;;
+    INT32 x = 300, y = 0, i = 0;
     UINT8 rand = 0;
+    CHAR16* str[3] = {L"あいうえお", L"かきくけこ", L"ＲﾜG２ヅに㌣９ガ?Y５！@［媾.桄０1％ソ２㌣G［-）鐔ぶメⅨキＶP６ＺIﾍびYヱ]やＵ7３#Ｏﾝ8顥Ы-ｴK.杤あへL咩４ょ(ＭM”６ド&ォＹCう%彌１饅)"};
+    EFI_INPUT_KEY ch;
     while(1){
         Status = ClearBuffer(GraphicsOutput, DoubleBuffer->Buffer);
         Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32, 64 + 16*0x33, 16*10, 16*10, 300, 0);
         Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*((x/40)%0xFF), 64 + 16*51, 16, 16, x, y);
-        Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, L"ＲﾜG２ヅに㌣９ガ?Y５！@［媾.桄０1％ソ２㌣G［-）鐔ぶメⅨキＶP６ＺIﾍびYヱ]やＵ7３#Ｏﾝ8顥Ы-ｴK.杤あへL咩４ょ(ＭM”６ド&ォＹCう%彌１饅)", 0, 304);
+        Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, str[i], 0, 304);
         for(UINT8 i = 0; i < 48; i++){
             rand = XorShift() % 0xFF;
             WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 420);
@@ -74,7 +76,6 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
             }
         }
         Status = DrawImageFromBuffer(GraphicsOutput, DoubleBuffer->Buffer);
-        //Print(L"%x\n", apart);
         if(EFI_ERROR(Status)){
             Print(L"Draw bmp failed.\n");
             return Status;
@@ -86,6 +87,18 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         }
         if(y + 32 > DispHeight){
             y=0;
+        }
+
+        ch = ReadKey(SysTable);
+        if(ch.UnicodeChar == L'q'){
+            break;
+        }
+        if(ch.ScanCode == 0x03){ // ->
+            i++;
+            if(i == 3) i = 0;
+        }else if(ch.ScanCode == 0x04){ // <-
+            i--;
+            if(i == -1) i = 2;
         }
     }
 
@@ -99,8 +112,13 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         FreePool(DoubleBuffer);
     }
 
-    while(1);
     return EFI_SUCCESS;
+}
+
+STATIC EFI_INPUT_KEY ReadKey(EFI_SYSTEM_TABLE *SysTable){
+    EFI_INPUT_KEY Key;
+    uefi_call_wrapper(SysTable->ConIn->ReadKeyStroke, 2, SysTable->ConIn, &Key);
+    return Key;
 }
 
 STATIC EFI_STATUS LoadFile(IN EFI_HANDLE Handle, IN CHAR16 *Path,	OUT	void **FileBuffer, OUT UINTN *FileSize){
