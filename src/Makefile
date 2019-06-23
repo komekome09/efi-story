@@ -36,7 +36,7 @@ DOCKER_SERVICE_NAME = uefi-story
 %.so: %.o
 	$(LD) $(LDFLAGS) $^ -o $@ $(LOADLIBS)
 
-%.o: %.c %.h stb_image.h
+%.o: %.c stb_image.h
 	$(CC) $(INCLUDES) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 TARGETS = main.efi

@@ -10,9 +10,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 	EFI_PCI_IO_PROTOCOL				*PciIo;
     BLT_PIXELS_BUFFER               *DoubleBuffer;
 
+    CHAR16 *FontFile = L"unifont-12.1.02.rev.png";
     CHAR16 *FileName[] = {
-	    L"unifont-12.1.02.rev.png",
-	    L"unifont-12.1.02.png",
 	    L"ruru.bmp",
 	    L"ruru.jpg",
 	    L"lena.png",
@@ -43,7 +42,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 
 	VOID	*ImgBuffer = NULL;
 	UINTN	ImgSize;
-	Status = LoadFile(ImgHandle,  FileName[0], &ImgBuffer, &ImgSize);
+	Status = LoadFile(ImgHandle, FontFile, &ImgBuffer, &ImgSize);
 	if(EFI_ERROR(Status)){
 		if(ImgBuffer != NULL){
 			FreePool(ImgBuffer);
