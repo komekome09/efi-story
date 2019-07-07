@@ -12,12 +12,16 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 
     CHAR16 *FontFile = L"unifont-12.1.02.rev.png";
     CHAR16 *FileName[] = {
-	    L"ruru.bmp",
-	    L"ruru.jpg",
-	    L"lena.png",
-	    L"Osaka.bmp",
-	    L"Logo.bmp",
-	    L"nanagi_8.bmp"
+        L"1.png",
+        L"2.png",
+        L"3.png",
+        L"4.png",
+        L"5.png",
+        L"6.png",
+        L"7.png",
+        L"8.png",
+        L"9.png",
+        L"10.png"
     };
 
     InitializeLib(ImgHandle, SysTable);
@@ -50,7 +54,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 		Print(L"Load Image failed.\n");
 		return Status;
 	}
-
+    
     INT32 Width = 0, Height = 0, Bpp = 0;
     UINT8 *Pixels = stbi_load_from_memory((UINT8*)ImgBuffer, ImgSize, &Width, &Height, &Bpp, 0);
     if(Pixels == NULL){
@@ -58,18 +62,47 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         return EFI_INVALID_PARAMETER;
     }
 
+    BLT_PIXELS_SCENE Scene[10];
+    for(UINTN i = 0; i < 10; i++){
+        Status = LoadFile(ImgHandle, FileName[i], &Scene[i].SceneBuffer, &Scene[i].SceneBufferSize);
+        if(EFI_ERROR(Status)){
+            if(Scene[i].SceneBuffer != NULL) FreePool(Scene[i].SceneBuffer);
+            Print(L"Load Image failed\n");
+            return Status;
+        }
+
+        Scene[i].ScenePixels = stbi_load_from_memory((UINT8*)Scene[i].SceneBuffer, Scene[i].SceneBufferSize, &Scene[i].SceneWidth, &Scene[i].SceneHeight, &Scene[i].SceneBpp, 0);
+        Print(L"%x %d %d\n", Scene[i].ScenePixels, Scene[i].SceneWidth, Scene[i].SceneHeight);
+        if(Scene[i].ScenePixels == NULL){
+            Print(L"%s\n", (CHAR16*)stbi_failure_reason());
+            return EFI_INVALID_PARAMETER;
+        }
+    }
+
     INT32 x = 300, y = 0, i = 0;
     UINT8 rand = 0;
-    CHAR16* str[3] = {L"あいうえお", L"かきくけこ", L"ＲﾜG２ヅに㌣９ガ?Y５！@［媾.桄０1％ソ２㌣G［-）鐔ぶメⅨキＶP６ＺIﾍびYヱ]やＵ7３#Ｏﾝ8顥Ы-ｴK.杤あへL咩４ょ(ＭM”６ド&ォＹCう%彌１饅)"};
+    CHAR16* text[10] = {L"Here is a simple experiment that will teach you an important electrical lesson:",
+                        L"On a cool, dry day, scuff your feet along a carpet, then reach your hand into a friend's mouth and touch one of his dental fillings.",
+                        L"Did you notice how your friend twitched violently and cried out in pain?",
+                        L"This teaches us that electricity can be a very powerful force, but we must never use it to hurt others unless we need to learn an important electrical lesson.",
+                        L"It also teaches us how an electrical circuit works.",
+                        L"When you scuffed your feet, you picked up batches of \"electrons\", which are very small objects that carpet manufacturers weave into carpets so they will attract dirt.",
+                        L"The electrons travel through your bloodstream and collect in your finger, where they form a spark that leaps to your friend's filling, then travels down to his feet and back into the carpet, thus completing the circuit.",
+                        L"Amazing Electronic Fact:",
+                        L"If you scuffed your feet long enough without touching anything, you would build up so many electrons that your finger would explode!",
+                        L"But this is nothing to worry about unless you have carpeting."
+    };
     EFI_INPUT_KEY ch;
     while(1){
         Status = ClearBuffer(GraphicsOutput, DoubleBuffer->Buffer);
-        Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32, 64 + 16*0x33, 16*10, 16*10, 300, 0);
-        Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*((x/40)%0xFF), 64 + 16*51, 16, 16, x, y);
-        Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, str[i], 0, 304);
+        Status = WriteToBuffer(GraphicsOutput, Scene[i].ScenePixels, DoubleBuffer->Buffer, Scene[i].SceneWidth, Scene[i].SceneHeight, Scene[i].SceneBpp, 0, 0, Scene[i].SceneWidth, Scene[i].SceneHeight, 0, 0, -1);
+        //Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32, 64 + 16*0x33, 16*10, 16*10, 300, 0, MASK);
+        //Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*((x/40)%0xFF), 64 + 16*51, 16, 16, x, y, MASK);
+        //Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, str[i%3], 0, 304);
+        Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, text[i], 100, 440);
         for(UINT8 i = 0; i < 48; i++){
             rand = XorShift() % 0xFF;
-            WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 420);
+            WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 420, MASK);
             if(EFI_ERROR(Status)){
                 Print(L"Draw bmp failed. %d\n", Status);
             }
@@ -92,12 +125,12 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         if(ch.UnicodeChar == L'q'){
             break;
         }
-        if(ch.ScanCode == 0x03){ // ->
+        if(ch.ScanCode == 0x03 || ch.UnicodeChar == L'\r'){ // ->
             i++;
-            if(i == 3) i = 0;
+            if(i == 10) i = 0;
         }else if(ch.ScanCode == 0x04){ // <-
             i--;
-            if(i == -1) i = 2;
+            if(i == -1) i = 9;
         }
     }
 
@@ -202,7 +235,7 @@ STATIC EFI_STATUS DrawImageFromBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsO
 STATIC EFI_STATUS WriteToBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput, IN void *Pixels, IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL* BltBuffer,
                             IN INT32 Width, IN INT32 Height, IN INT32 Bpp,
                             IN INT32 XLShow, IN INT32 YTShow, IN INT32 XRShow, IN INT32 YBShow,
-                            IN INT32 x, IN INT32 y){
+                            IN INT32 x, IN INT32 y, IN INT32 XrayColor){
     EFI_STATUS      Status = EFI_SUCCESS;
 
     if(Pixels == NULL || BltBuffer == NULL){
@@ -228,6 +261,12 @@ STATIC EFI_STATUS WriteToBuffer(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput,
                 ImgIndex += XLShow*Bpp;
             }
 			BltPos = YIndex * DispWidth + XIndex;
+            // very very simple transparent process
+            INT32 IndexColor = (INT32)(0x00000000 + (*ImgIndex << 16) + (*(ImgIndex+1) << 8) + (*(ImgIndex+2)));
+            if(XrayColor != -1 && XrayColor >= IndexColor){
+                ImgIndex += Bpp;
+                continue;
+            }
 			switch(Bpp){
 				case 4:					
                     BltBuffer[BltPos].Red           = *ImgIndex++;
@@ -285,7 +324,7 @@ STATIC EFI_STATUS PrintFont(IN EFI_GRAPHICS_OUTPUT_PROTOCOL *Go, IN void* Fonts,
             PrintPosY += FontDiv;
             PrintPosX = x;
         }
-        WriteToBuffer(Go, Fonts, BltBuffer, Width, Height, Bpp, XOffset + FontDiv * lsb, YOffset + FontDiv * msb, FontDiv, FontDiv, PrintPosX, PrintPosY);
+        WriteToBuffer(Go, Fonts, BltBuffer, Width, Height, Bpp, XOffset + FontDiv * lsb, YOffset + FontDiv * msb, FontDiv, FontDiv, PrintPosX, PrintPosY, MASK);
     }
 
     return EFI_SUCCESS;
