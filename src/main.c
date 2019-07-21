@@ -32,7 +32,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 
 	VOID	*ImgBuffer = NULL;
 	UINTN	ImgSize;
-	Status = LoadFile(ImgHandle, FontFile, &ImgBuffer, &ImgSize);
+    EFI_FILE* Root = OpenFileVolume();
+	Status = LoadFile(ImgHandle, FontFile, Root, &ImgBuffer, &ImgSize);
 	if(EFI_ERROR(Status)){
 		if(ImgBuffer != NULL){
 			FreePool(ImgBuffer);
@@ -50,7 +51,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 
     BLT_PIXELS_SCENE Scene[10];
     for(UINTN i = 0; i < 10; i++){
-        Status = LoadFile(ImgHandle, FileName[i], &Scene[i].SceneBuffer, &Scene[i].SceneBufferSize);
+        Status = LoadFile(ImgHandle, FileName[i], Root, &Scene[i].SceneBuffer, &Scene[i].SceneBufferSize);
         if(EFI_ERROR(Status)){
             if(Scene[i].SceneBuffer != NULL) FreePool(Scene[i].SceneBuffer);
             Print(L"Load Image failed\n");
@@ -58,11 +59,13 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         }
 
         Scene[i].ScenePixels = stbi_load_from_memory((UINT8*)Scene[i].SceneBuffer, Scene[i].SceneBufferSize, &Scene[i].SceneWidth, &Scene[i].SceneHeight, &Scene[i].SceneBpp, 0);
-        Print(L"%x %d %d\n", Scene[i].ScenePixels, Scene[i].SceneWidth, Scene[i].SceneHeight);
+        Print(L"%d %x %d %d\n", i, Scene[i].ScenePixels, Scene[i].SceneWidth, Scene[i].SceneHeight);
         if(Scene[i].ScenePixels == NULL){
             Print(L"%s\n", (CHAR16*)stbi_failure_reason());
             return EFI_INVALID_PARAMETER;
         }
+
+        FreePool(Scene[i].SceneBuffer);
     }
 
     INT32 x = 300, y = 0, i = 0;
@@ -130,31 +133,53 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
     return EFI_SUCCESS;
 }
 
+STATIC UINT32 GetFps(FPS_COUNTER *fps, EFI_TIME *time){
+    //EFI_TIME time;
+
+    uefi_call_wrapper(RT->GetTime, 2, &time, NULL);
+
+    fps->TimeAfter = time->Nanosecond;
+    UINT32 diff = fps->TimeAfter - fps->TimeBefore;
+    diff = diff >= 0 ? diff : -diff;
+    if(diff == 0) fps->FpsMean[fps->TimeCount] = 0;
+    else fps->FpsMean[fps->TimeCount] = 1e9 / diff;
+    fps->TimeCount++;
+    if(fps->TimeCount >= 10) fps->TimeCount = 0;
+
+    UINT32 tmp = 0;
+    for(UINTN i = 0; i < 10; i++)
+        tmp += fps->FpsMean[i];
+
+    fps->TimeBefore = fps->TimeAfter;
+    return tmp / 10;
+}
+
 STATIC EFI_INPUT_KEY ReadKey(EFI_SYSTEM_TABLE *SysTable){
     EFI_INPUT_KEY Key;
     uefi_call_wrapper(SysTable->ConIn->ReadKeyStroke, 2, SysTable->ConIn, &Key);
     return Key;
 }
 
-STATIC EFI_STATUS LoadFile(IN EFI_HANDLE Handle, IN CHAR16 *Path,	OUT	void **FileBuffer, OUT UINTN *FileSize){
+STATIC EFI_FILE* OpenFileVolume(){
+    EFI_STATUS Status = EFI_SUCCESS;
+    EFI_FILE_IO_INTERFACE *SimpleFile;
+    EFI_GUID SimpleFileSystemProtocolGuid = SIMPLE_FILE_SYSTEM_PROTOCOL;
+    EFI_FILE *Root;
+
+    Status = uefi_call_wrapper(BS->LocateProtocol, 3, &SimpleFileSystemProtocolGuid, NULL, &SimpleFile);
+    if(EFI_ERROR(Status)) return NULL;
+
+    Status = uefi_call_wrapper(SimpleFile->OpenVolume, 2, SimpleFile, &Root);
+    if(EFI_ERROR(Status)) return NULL;
+
+    return Root;
+}
+
+STATIC EFI_STATUS LoadFile(IN EFI_HANDLE Handle, IN CHAR16 *Path, EFI_FILE* Root, OUT void **FileBuffer, OUT UINTN *FileSize){
 	EFI_STATUS					Status = EFI_SUCCESS;
-	EFI_FILE_IO_INTERFACE		*SimpleFile;
-    EFI_GUID					SimpleFileSystemProtocolGuid = SIMPLE_FILE_SYSTEM_PROTOCOL;
-    EFI_FILE					*Root, *File;
+    EFI_FILE					*File;
 	UINTN						BufferSize;
 	void						*Buffer = NULL;
-
-	Status = uefi_call_wrapper(BS->LocateProtocol, 3, &SimpleFileSystemProtocolGuid, NULL, &SimpleFile);
-	if(EFI_ERROR(Status)){
-		Print(L"LocateProtocol: %r\n", Status);
-		return Status;
-	}
-
-	Status = uefi_call_wrapper(SimpleFile->OpenVolume, 2, SimpleFile, &Root);
-	if(EFI_ERROR(Status)){
-		Print(L"VolumrOpen: %r\n", Status);
-		return Status;
-	}
 
 	Status = uefi_call_wrapper(Root->Open, 5, Root, &File, Path, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY);
 	if(EFI_ERROR(Status)){
@@ -181,6 +206,8 @@ STATIC EFI_STATUS LoadFile(IN EFI_HANDLE Handle, IN CHAR16 *Path,	OUT	void **Fil
 
 	*FileBuffer = Buffer;
 	*FileSize   = BufferSize;
+
+    Status = uefi_call_wrapper(File->Close, 1, File);
 
 	return Status;
 }
