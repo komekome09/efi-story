@@ -4,32 +4,18 @@
 
 EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
     EFI_GUID						EfiGraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-	EFI_GUID						EfiPciIoProtocolGuid = EFI_PCI_IO_PROTOCOL_GUID;
 	EFI_STATUS 						Status = EFI_SUCCESS;
 	EFI_GRAPHICS_OUTPUT_PROTOCOL	*GraphicsOutput;
-	EFI_PCI_IO_PROTOCOL				*PciIo;
     BLT_PIXELS_BUFFER               *DoubleBuffer;
 
     CHAR16 *FontFile = L"unifont-12.1.02.rev.png";
-    CHAR16 *FileName[] = {
-        L"1.png",
-        L"2.png",
-        L"3.png",
-        L"4.png",
-        L"5.png",
-        L"6.png",
-        L"7.png",
-        L"8.png",
-        L"9.png",
-        L"10.png"
-    };
+    CHAR16 *FileName[] = {L"1.png", L"2.png", L"3.png", L"4.png", L"5.png", L"6.png", L"7.png", L"8.png", L"9.png", L"10.png"};
 
     InitializeLib(ImgHandle, SysTable);
 
     Print(L"Hello world!\n");
 
 	LibLocateProtocol(&EfiGraphicsOutputProtocolGuid, (void **)&GraphicsOutput);
-	LibLocateProtocol(&EfiPciIoProtocolGuid, (void **)&PciIo);
 
     UINTN DispWidth =  GraphicsOutput->Mode->Info->HorizontalResolution;
     UINTN DispHeight = GraphicsOutput->Mode->Info->VerticalResolution;
@@ -96,13 +82,10 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
     while(1){
         Status = ClearBuffer(GraphicsOutput, DoubleBuffer->Buffer);
         Status = WriteToBuffer(GraphicsOutput, Scene[i].ScenePixels, DoubleBuffer->Buffer, Scene[i].SceneWidth, Scene[i].SceneHeight, Scene[i].SceneBpp, 0, 0, Scene[i].SceneWidth, Scene[i].SceneHeight, 0, 0, -1);
-        //Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32, 64 + 16*0x33, 16*10, 16*10, 300, 0, MASK);
-        //Status = WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*((x/40)%0xFF), 64 + 16*51, 16, 16, x, y, MASK);
-        //Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, str[i%3], 0, 304);
         Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, text[i], 100, 440);
         for(UINT8 i = 0; i < 48; i++){
             rand = XorShift() % 0xFF;
-            WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 420, MASK);
+            //WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 220, MASK);
             if(EFI_ERROR(Status)){
                 Print(L"Draw bmp failed. %d\n", Status);
             }
