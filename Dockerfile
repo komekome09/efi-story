@@ -6,9 +6,6 @@ WORKDIR /var
 
 RUN apk --update add --virtual build-dependences \
         build-base \
-        musl-dev \
-        wget \
-        unzip \
         curl \
     && set -x \
     && curl -sSL "https://sourceforge.net/projects/gnu-efi/files/gnu-efi-${GNUEFI_VERSION}.tar.bz2/download" -o gnu-efi.tar.bz2 \
