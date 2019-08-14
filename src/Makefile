@@ -60,4 +60,5 @@ clean:
 	rm -f main.efi main.so main.o
 
 docker:
-	docker-compose up --exit-code-from $(DOCKER_SERVICE_NAME) --abort-on-container-exit && make qemu
+	docker run -v `pwd`:/var/gnuefi efi-build
+	make qemu

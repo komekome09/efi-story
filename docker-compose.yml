@@ -1,7 +1,0 @@
-version: '3'
-services:
-    uefi-story:
-        build: .
-        container_name: efi-story
-        volumes:
-            - ./src:/var/gnuefi
