@@ -10,6 +10,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 
     CHAR16 *FontFile = L"unifont-12.1.02.rev.png";
     CHAR16 *FileName[] = {L"1.png", L"2.png", L"3.png", L"4.png", L"5.png", L"6.png", L"7.png", L"8.png", L"9.png", L"10.png"};
+    CHAR16 *TextFile = L"hoge.txt";
 
     InitializeLib(ImgHandle, SysTable);
 
@@ -42,6 +43,16 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
 		return Status;
 	}
     
+    VOID* TextBuffer = NULL;
+    UINTN TextBufferSize;
+    Status = LoadFile(ImgHandle, TextFile, Root, &TextBuffer, &TextBufferSize);
+    if(EFI_ERROR(Status)) return Status;
+
+    CHAR8* T = TextBuffer;
+    for(UINTN i = 0; i < TextBufferSize; i++){
+        Print(L"%c ", *T++);
+    }
+
     INT32 Width = 0, Height = 0, Bpp = 0;
     UINT8 *Pixels = stbi_load_from_memory((UINT8*)ImgBuffer, ImgSize, &Width, &Height, &Bpp, 0);
     if(Pixels == NULL){
@@ -84,11 +95,12 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
     EFI_INPUT_KEY ch;
     while(1){
         Status = ClearBuffer(GraphicsOutput, DoubleBuffer->Buffer);
-        Status = WriteToBuffer(GraphicsOutput, Scene[i].ScenePixels, DoubleBuffer->Buffer, Scene[i].SceneWidth, Scene[i].SceneHeight, Scene[i].SceneBpp, 0, 0, Scene[i].SceneWidth, Scene[i].SceneHeight, 0, 0, -1);
+        //Status = WriteToBuffer(GraphicsOutput, Scene[i].ScenePixels, DoubleBuffer->Buffer, Scene[i].SceneWidth, Scene[i].SceneHeight, Scene[i].SceneBpp, 0, 0, Scene[i].SceneWidth, Scene[i].SceneHeight, 0, 0, -1);
         Status = PrintFont(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, text[i], 100, 440);
+        
         for(UINT8 i = 0; i < 48; i++){
             rand = XorShift() % 0xFF;
-            //WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 220, MASK);
+            WriteToBuffer(GraphicsOutput, Pixels, DoubleBuffer->Buffer, Width, Height, Bpp, 32 + 16*rand, 64 + 16*rand, 16, 16, 16*(i%48), 220, 0xffffff);//MASK);
             if(EFI_ERROR(Status)){
                 Print(L"Draw bmp failed. %d\n", Status);
             }
@@ -117,6 +129,15 @@ EFI_STATUS efi_main(EFI_HANDLE ImgHandle, EFI_SYSTEM_TABLE *SysTable){
         }else if(ch.ScanCode == 0x04){ // <-
             i--;
             if(i == -1) i = 9;
+        }
+
+        if(ch.UnicodeChar == L'a'){
+            while(1){
+                ch = ReadKey(SysTable);
+                Print(L"%s\r",text[4]);
+                if(ch.UnicodeChar == L'b')
+                    break;
+            }
         }
     }
 
